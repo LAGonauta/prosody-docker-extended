@@ -1,6 +1,18 @@
-FROM ubuntu:xenial
+FROM arm64v8/debian:stretch-slim as Builder
+RUN apt-get update && \
+    apt-get install -y fakeroot ca-certificates txt2man equivs devscripts mercurial liblua5.2-dev libidn11-dev libssl-dev build-essential && \
+    hg clone https://hg.prosody.im/0.11/ prosody-0.11 && \
+    hg clone https://hg.prosody.im/debian/ prosody-0.11/debian && \
+    cd prosody* && \
+    dch -v 0.11~$(hg id -i)-1 "I build my own" && \
+    mk-build-deps -ri && \
+    debuild -us -uc -B
+
+FROM arm64v8/debian:stretch-slim as Final
 MAINTAINER Victor Kulichenko <onclev@gmail.com>
-COPY prosody.list /etc/apt/sources.list.d/
+COPY --from=Builder /prosody_0.11~*-1_arm64.deb /packages/prosody_arm64.deb
+
+#COPY prosody.list /etc/apt/sources.list.d/
 COPY ./entrypoint.sh /usr/bin/entrypoint.sh
 COPY ./update-modules.sh /usr/bin/update-modules
 COPY ./check_prosody_update.sh /usr/bin/check_prosody_update
@@ -14,15 +26,11 @@ ENV PROSODY_VERSION=${PROSODY_VERSION} \
 RUN groupadd -g $PGID -r prosody && useradd -b /var/lib -m -g $PGID -u $PUID -r -s /bin/bash prosody
 
 # install prosody, mercurial, and recommended dependencies, prosody-modules locations, tweak and preserve config
-ADD https://prosody.im/files/prosody-debian-packages.key /root/key
+RUN apt-get update && apt-get install -y gnupg2
 RUN set -x \
- && apt-key add /root/key && rm /root/key \
  && apt-get update -qq \
- && echo prosody-migrator${PROSODY_VERSION:--0.9} | sed -e 's/prosody-migrator-0.9//' \
-  | xargs apt-get install -qy telnet \
-    apt-utils mercurial lua-sec lua-event lua-zlib lua-ldap \
-    lua-dbi-mysql lua-dbi-postgresql lua-dbi-sqlite3 lua-bitop \
-    prosody${PROSODY_VERSION} \
+ && apt install /packages/prosody_arm64.deb -y \
+ && apt-get install -qy lua-sec lua-event lua-zlib lua-ldap lua-dbi-mysql lua-dbi-postgresql lua-dbi-sqlite3 lua-bitop \
  && apt-get purge apt-utils -qy \
  && apt-get clean && rm -Rf /var/lib/apt/lists \
  && sed -i -e '1s/^/daemonize = false;\n/' -e 's/daemonize = true/-- daemonize = true/g' /etc/prosody/prosody.cfg.lua \
@@ -33,6 +41,8 @@ RUN set -x \
  && cp -Rv /etc/prosody /etc/prosody.default && chown prosody:prosody -Rv /etc/prosody /etc/prosody.default \
  && mkdir -p "$PROSODY_MODULES" && chown prosody:prosody -R "$PROSODY_MODULES" && mkdir -p "$CUSTOM_MODULES" && chown prosody:prosody -R "$CUSTOM_MODULES" \
  && chmod 755 /usr/bin/entrypoint.sh /usr/bin/update-modules /usr/bin/check_prosody_update
+
+RUN rm /packages/prosody_arm64.deb && rmdir /packages
 
 VOLUME ["/etc/prosody", "/var/lib/prosody", "/var/log/prosody", "$PROSODY_MODULES", "$CUSTOM_MODULES"]
 
