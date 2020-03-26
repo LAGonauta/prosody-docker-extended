@@ -41,7 +41,7 @@ RUN set -x \
  && mkdir -p "$PROSODY_MODULES" && chown prosody:prosody -R "$PROSODY_MODULES" && mkdir -p "$CUSTOM_MODULES" && chown prosody:prosody -R "$CUSTOM_MODULES" \
  && chmod 755 /usr/bin/entrypoint.sh /usr/bin/update-modules /usr/bin/check_prosody_update
 
-RUN rm /packages/prosody_arm64.deb && rmdir /packages
+RUN rm /packages/prosody.deb && rmdir /packages
 
 VOLUME ["/etc/prosody", "/var/lib/prosody", "/var/log/prosody", "$PROSODY_MODULES", "$CUSTOM_MODULES"]
 
