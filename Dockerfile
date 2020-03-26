@@ -1,4 +1,4 @@
-FROM arm64v8/debian:stretch-slim as Builder
+FROM debian:buster-slim as Builder
 RUN apt-get update && \
     apt-get install -y fakeroot ca-certificates txt2man equivs devscripts mercurial liblua5.2-dev libidn11-dev libssl-dev build-essential && \
     hg clone https://hg.prosody.im/0.11/ prosody-0.11 && \
@@ -8,9 +8,9 @@ RUN apt-get update && \
     mk-build-deps -ri && \
     debuild -us -uc -B
 
-FROM arm64v8/debian:stretch-slim as Final
+FROM debian:buster-slim as Final
 MAINTAINER Victor Kulichenko <onclev@gmail.com>
-COPY --from=Builder /prosody_0.11~*-1_arm64.deb /packages/prosody_arm64.deb
+COPY --from=Builder /prosody_0.11~*.deb /packages/prosody.deb
 
 #COPY prosody.list /etc/apt/sources.list.d/
 COPY ./entrypoint.sh /usr/bin/entrypoint.sh
@@ -28,8 +28,7 @@ RUN groupadd -g $PGID -r prosody && useradd -b /var/lib -m -g $PGID -u $PUID -r 
 # install prosody, mercurial, and recommended dependencies, prosody-modules locations, tweak and preserve config
 RUN apt-get update && apt-get install -y gnupg2
 RUN set -x \
- && apt-get update -qq \
- && apt install /packages/prosody_arm64.deb -y \
+ && apt install /packages/prosody.deb -y \
  && apt-get install -qy lua-sec lua-event lua-zlib lua-ldap lua-dbi-mysql lua-dbi-postgresql lua-dbi-sqlite3 lua-bitop \
  && apt-get purge apt-utils -qy \
  && apt-get clean && rm -Rf /var/lib/apt/lists \
@@ -53,4 +52,3 @@ ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 EXPOSE 80 443 5222 5269 5347 5280 5281
 ENV __FLUSH_LOG yes
 CMD ["prosody"]
-
